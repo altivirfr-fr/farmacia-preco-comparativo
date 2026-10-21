@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  BarChart,
   Bar,
+  BarChart,
   CartesianGrid,
   Cell,
-  Doughnut,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -17,49 +16,146 @@ const currency = (value) =>
   new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-  }).format(value || 0);
+  }).format(Number(value || 0));
 
 const sectionLabels = {
   dashboard: 'Dashboard',
   comparison: 'Comparação',
   reports: 'Relatórios',
+  catalog: 'Catálogo',
+  suppliers: 'Fornecedores',
+};
+
+const emptyProduct = {
+  name: '',
+  brand: '',
+  category: '',
+  dose: '',
+  presentation: '',
+  supplierId: '',
+  price: '',
+  quantity: '',
+  code: '',
+};
+
+const emptySupplier = {
+  name: '',
+  contact: '',
+  notes: '',
 };
 
 export default function App() {
-  const [report, setReport] = useState(null);
   const [products, setProducts] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [report, setReport] = useState(null);
   const [activeSection, setActiveSection] = useState('dashboard');
-  const [isLoading, setIsLoading] = useState(true);
+  const [filterSupplier, setFilterSupplier] = useState('all');
+  const [filterBrand, setFilterBrand] = useState('all');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [productForm, setProductForm] = useState(emptyProduct);
+  const [supplierForm, setSupplierForm] = useState(emptySupplier);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const loadData = async () => {
-    setIsLoading(true);
+    setLoading(true);
     setError('');
     try {
-      const [productsRes, reportRes] = await Promise.all([
+      const [productsRes, suppliersRes, reportRes] = await Promise.all([
         fetch('/api/products'),
+        fetch('/api/suppliers'),
         fetch('/api/report'),
       ]);
 
-      if (!productsRes.ok || !reportRes.ok) {
-        throw new Error('Não foi possível carregar os dados.');
+      if (!productsRes.ok || !suppliersRes.ok || !reportRes.ok) {
+        throw new Error('Não foi possível carregar os dados do sistema.');
       }
 
-      const productsData = await productsRes.json();
-      const reportData = await reportRes.json();
+      const [productsData, suppliersData, reportData] = await Promise.all([
+        productsRes.json(),
+        suppliersRes.json(),
+        reportRes.json(),
+      ]);
 
       setProducts(productsData);
+      setSuppliers(suppliersData);
       setReport(reportData);
     } catch (err) {
-      setError(err.message || 'Erro ao carregar dados.');
+      setError(err.message || 'Erro ao carregar dados');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleProductSubmit = async (event) => {
+    event.preventDefault();
+    const supplier = suppliers.find((item) => item.id === productForm.supplierId);
+
+    if (!supplier) {
+      alert('Selecione um fornecedor válido.');
+      return;
+    }
+
+    const payload = {
+      ...productForm,
+      supplier: supplier.name,
+      supplierId: supplier.id,
+      price: Number(productForm.price),
+      quantity: Number(productForm.quantity || 1),
+      name: productForm.name.trim(),
+      code: productForm.code.trim() || `PROD-${Date.now()}`,
+    };
+
+    try {
+      const response = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao cadastrar o produto.');
+      }
+
+      setProductForm(emptyProduct);
+      await loadData();
+      alert('Produto cadastrado com sucesso.');
+    } catch (err) {
+      alert(err.message || 'Erro ao cadastrar produto.');
+    }
+  };
+
+  const handleSupplierSubmit = async (event) => {
+    event.preventDefault();
+
+    try {
+      const response = await fetch('/api/suppliers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...supplierForm,
+          name: supplierForm.name.trim(),
+          contact: supplierForm.contact.trim(),
+          notes: supplierForm.notes.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao cadastrar fornecedor.');
+      }
+
+      setSupplierForm(emptySupplier);
+      await loadData();
+      alert('Fornecedor cadastrado com sucesso.');
+    } catch (err) {
+      alert(err.message || 'Erro ao cadastrar fornecedor.');
+    }
+  };
 
   const handleImport = async (event) => {
     const file = event.target.files?.[0];
@@ -82,7 +178,7 @@ export default function App() {
       alert(`${payload.imported} produtos importados com sucesso.`);
       await loadData();
     } catch (err) {
-      alert(err.message || 'Erro ao importar o arquivo.');
+      alert(err.message || 'Erro ao importar a planilha.');
     } finally {
       event.target.value = '';
     }
@@ -105,6 +201,27 @@ export default function App() {
     }
   };
 
+  const brands = useMemo(
+    () => [...new Set(products.map((item) => item.brand).filter(Boolean))],
+    [products]
+  );
+
+  const categories = useMemo(
+    () => [...new Set(products.map((item) => item.category).filter(Boolean))],
+    [products]
+  );
+
+  const filteredProducts = useMemo(() => {
+    return products.filter((item) => {
+      const supplierMatch =
+        filterSupplier === 'all' || item.supplierId === filterSupplier || item.supplier === filterSupplier;
+      const brandMatch = filterBrand === 'all' || item.brand === filterBrand;
+      const categoryMatch = filterCategory === 'all' || item.category === filterCategory;
+      const priceMatch = !maxPrice || Number(item.price) <= Number(maxPrice);
+      return supplierMatch && brandMatch && categoryMatch && priceMatch;
+    });
+  }, [products, filterSupplier, filterBrand, filterCategory, maxPrice]);
+
   const supplierChartData = useMemo(
     () =>
       report?.supplierTotals?.map((entry) => ({
@@ -125,7 +242,7 @@ export default function App() {
 
   const pieColors = ['#34d399', '#60a5fa', '#fbbf24', '#f472b6', '#a78bfa'];
 
-  if (isLoading) {
+  if (loading) {
     return <div className="loading-shell">Carregando painel...</div>;
   }
 
@@ -134,7 +251,7 @@ export default function App() {
       <div className="loading-shell error-shell">
         <h2>Ops!</h2>
         <p>{error}</p>
-        <button className="primary-btn" onClick={loadData}>
+        <button type="button" className="primary-btn" onClick={loadData}>
           Tentar novamente
         </button>
       </div>
@@ -166,7 +283,7 @@ export default function App() {
 
         <div className="sidebar-card">
           <p className="eyebrow">Ação rápida</p>
-          <button className="primary-btn" type="button" onClick={handleReset}>
+          <button type="button" className="primary-btn" onClick={handleReset}>
             Restaurar dados fictícios
           </button>
         </div>
@@ -187,7 +304,7 @@ export default function App() {
             <h2>Comparativo de preços para farmácias</h2>
           </div>
           <div className="topbar-actions">
-            <span className="status-pill">Versão profissional</span>
+            <span className="status-pill">Versão final</span>
           </div>
         </header>
 
@@ -229,7 +346,7 @@ export default function App() {
                     <BarChart data={priceChartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.28)" />
                       <XAxis dataKey="name" stroke="#cbd5e1" tick={{ fontSize: 12 }} />
-                      <YAxis stroke="#cbd5e1" tickFormatter={(v) => `R$${v}`} />
+                      <YAxis stroke="#cbd5e1" tickFormatter={(value) => `R$${value}`} />
                       <Tooltip
                         formatter={(value) => currency(Number(value))}
                         contentStyle={{
@@ -256,7 +373,7 @@ export default function App() {
                         dataKey="value"
                         nameKey="name"
                         outerRadius={80}
-                        innerRadius={38}
+                        innerRadius={40}
                         paddingAngle={3}
                       >
                         {supplierChartData.map((entry, index) => (
@@ -278,13 +395,51 @@ export default function App() {
               <h3>Comparação de produtos</h3>
             </div>
 
+            <div className="filter-panel">
+              <select value={filterSupplier} onChange={(e) => setFilterSupplier(e.target.value)}>
+                <option value="all">Todos os fornecedores</option>
+                {suppliers.map((supplier) => (
+                  <option key={supplier.id} value={supplier.id}>
+                    {supplier.name}
+                  </option>
+                ))}
+              </select>
+
+              <select value={filterBrand} onChange={(e) => setFilterBrand(e.target.value)}>
+                <option value="all">Todas as marcas</option>
+                {brands.map((brand) => (
+                  <option key={brand} value={brand}>
+                    {brand}
+                  </option>
+                ))}
+              </select>
+
+              <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+                <option value="all">Todas as categorias</option>
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Preço máximo"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+              />
+            </div>
+
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
                     <th>Produto</th>
                     <th>Marca</th>
-                    <th>Apresentação</th>
+                    <th>Categoria</th>
                     <th>Fornecedor</th>
                     <th>Preço unit.</th>
                     <th>Qtd.</th>
@@ -293,20 +448,25 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {report?.bestOffers?.map((item) => (
-                    <tr key={`${item.product}-${item.supplier}`}>
-                      <td>{item.product}</td>
-                      <td>{item.brand}</td>
-                      <td>{item.presentation}</td>
-                      <td>{item.supplier}</td>
-                      <td>{currency(item.price)}</td>
-                      <td>{item.quantity}</td>
-                      <td>{currency(item.subtotal)}</td>
-                      <td>
-                        <span className="badge best">Mais barato</span>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredProducts.map((item) => {
+                    const isBest = Number(item.price) === Math.min(...filteredProducts.map((entry) => Number(entry.price)));
+                    return (
+                      <tr key={item.id || `${item.name}-${item.supplier}`}>
+                        <td>{item.name}</td>
+                        <td>{item.brand}</td>
+                        <td>{item.category}</td>
+                        <td>{item.supplier}</td>
+                        <td>{currency(item.price)}</td>
+                        <td>{item.quantity}</td>
+                        <td>{currency(Number(item.price) * Number(item.quantity))}</td>
+                        <td>
+                          <span className={`badge ${isBest ? 'best' : 'other'}`}>
+                            {isBest ? 'Mais barato' : 'Comparar'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -363,6 +523,135 @@ export default function App() {
                   </li>
                 </ul>
               </div>
+            </div>
+          </section>
+        )}
+
+        {activeSection === 'catalog' && (
+          <section className="panel active">
+            <div className="section-header">
+              <h3>Cadastro de produtos</h3>
+            </div>
+
+            <form className="form-grid" onSubmit={handleProductSubmit}>
+              <input
+                type="text"
+                placeholder="Nome do produto"
+                value={productForm.name}
+                onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+              />
+              <input
+                type="text"
+                placeholder="Marca"
+                value={productForm.brand}
+                onChange={(e) => setProductForm({ ...productForm, brand: e.target.value })}
+              />
+              <input
+                type="text"
+                placeholder="Categoria"
+                value={productForm.category}
+                onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
+              />
+              <input
+                type="text"
+                placeholder="Dose"
+                value={productForm.dose}
+                onChange={(e) => setProductForm({ ...productForm, dose: e.target.value })}
+              />
+              <input
+                type="text"
+                placeholder="Apresentação"
+                value={productForm.presentation}
+                onChange={(e) => setProductForm({ ...productForm, presentation: e.target.value })}
+              />
+              <select
+                value={productForm.supplierId}
+                onChange={(e) => setProductForm({ ...productForm, supplierId: e.target.value })}
+              >
+                <option value="">Selecione o fornecedor</option>
+                {suppliers.map((supplier) => (
+                  <option key={supplier.id} value={supplier.id}>
+                    {supplier.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Preço unitário"
+                value={productForm.price}
+                onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
+              />
+              <input
+                type="number"
+                min="0"
+                placeholder="Quantidade"
+                value={productForm.quantity}
+                onChange={(e) => setProductForm({ ...productForm, quantity: e.target.value })}
+              />
+              <input
+                type="text"
+                placeholder="Código interno"
+                value={productForm.code}
+                onChange={(e) => setProductForm({ ...productForm, code: e.target.value })}
+              />
+              <button type="submit" className="primary-btn submit-btn">
+                Salvar produto
+              </button>
+            </form>
+          </section>
+        )}
+
+        {activeSection === 'suppliers' && (
+          <section className="panel active">
+            <div className="section-header">
+              <h3>Cadastro de fornecedores</h3>
+            </div>
+
+            <form className="form-grid" onSubmit={handleSupplierSubmit}>
+              <input
+                type="text"
+                placeholder="Nome do fornecedor"
+                value={supplierForm.name}
+                onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
+              />
+              <input
+                type="text"
+                placeholder="Contato"
+                value={supplierForm.contact}
+                onChange={(e) => setSupplierForm({ ...supplierForm, contact: e.target.value })}
+              />
+              <textarea
+                rows="4"
+                placeholder="Observações"
+                value={supplierForm.notes}
+                onChange={(e) => setSupplierForm({ ...supplierForm, notes: e.target.value })}
+              />
+              <button type="submit" className="primary-btn submit-btn">
+                Salvar fornecedor
+              </button>
+            </form>
+
+            <div className="table-wrap supplier-list-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fornecedor</th>
+                    <th>Contato</th>
+                    <th>Observações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {suppliers.map((supplier) => (
+                    <tr key={supplier.id}>
+                      <td>{supplier.name}</td>
+                      <td>{supplier.contact}</td>
+                      <td>{supplier.notes}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </section>
         )}
