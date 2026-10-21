@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PharmCompare | Comparador de Preços</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">P</div>
+          <div>
+            <h1>PharmCompare</h1>
+          </div>
+        </div>
+
+        <nav class="menu">
+          <button class="nav-item active" data-section="dashboard">Dashboard</button>
+          <button class="nav-item" data-section="comparacao">Comparação</button>
+          <button class="nav-item" data-section="relatorios">Relatórios</button>
+        </nav>
+
+        <div class="sidebar-card">
+          <p class="eyebrow">Ação rápida</p>
+          <button id="loadFakeDataBtn" class="primary-btn">Carregar dados fictícios</button>
+        </div>
+
+        <div class="sidebar-card">
+          <p class="eyebrow">Importar Excel</p>
+          <label class="upload-btn">
+            <input type="file" id="excelInput" accept=".xlsx,.xls,.csv" />
+            Selecionar planilha
+          </label>
+        </div>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Painel de compras</p>
+            <h2>Comparativo de preços para farmácias</h2>
+          </div>
+          <div class="topbar-actions">
+            <span class="status-pill">Modo teste</span>
+          </div>
+        </header>
+
+        <section id="dashboard" class="panel active">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <span class="label">Produtos comparados</span>
+              <strong id="totalProdutos">0</strong>
+              <small>itens analisados</small>
+            </div>
+
+            <div class="stat-card">
+              <span class="label">Fornecedor mais barato</span>
+              <strong id="melhorFornecedor">-</strong>
+              <small id="melhorFornecedorDesc">Aguardando cálculo</small>
+            </div>
+
+            <div class="stat-card">
+              <span class="label">Custo do pedido</span>
+              <strong id="custoPedido">R$ 0,00</strong>
+              <small>total estimado</small>
+            </div>
+
+            <div class="stat-card">
+              <span class="label">Economia</span>
+              <strong id="economiaTotal">R$ 0,00</strong>
+              <small>vs. maior preço</small>
+            </div>
+          </div>
+
+          <div class="chart-grid">
+            <div class="chart-card wide">
+              <div class="card-head">
+                <h3>Preço por produto</h3>
+              </div>
+              <canvas id="priceChart"></canvas>
+            </div>
+
+            <div class="chart-card">
+              <div class="card-head">
+                <h3>Distribuidoras</h3>
+              </div>
+              <canvas id="supplierChart"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <section id="comparacao" class="panel">
+          <div class="section-header">
+            <h3>Comparação de produtos</h3>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Produto</th>
+                  <th>Marca</th>
+                  <th>Apresentação</th>
+                  <th>Fornecedor</th>
+                  <th>Preço unit.</th>
+                  <th>Qtd.</th>
+                  <th>Subtotal</th>
+                  <th>Mais barato</th>
+                </tr>
+              </thead>
+              <tbody id="comparisonTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="relatorios" class="panel">
+          <div class="section-header">
+            <h3>Relatórios e análise</h3>
+          </div>
+
+          <div class="report-grid">
+            <div class="report-card">
+              <h4>Ranking dos mais baratos</h4>
+              <ul id="rankingList"></ul>
+            </div>
+
+            <div class="report-card">
+              <h4>Resumo por distribuidora</h4>
+              <ul id="supplierSummary"></ul>
+            </div>
+
+            <div class="report-card">
+              <h4>Observações</h4>
+              <ul id="insightsList"></ul>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
