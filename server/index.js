@@ -1,9 +1,13 @@
-const express = require('express');
-const cors = require('cors');
-const multer = require('multer');
-const XLSX = require('xlsx');
-const fs = require('fs');
-const path = require('path');
+import express from 'express';
+import cors from 'cors';
+import multer from 'multer';
+import * as XLSX from 'xlsx';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3001;
@@ -83,8 +87,8 @@ function groupByProduct(items) {
       dose: group[0].dose,
       presentation: group[0].presentation,
       supplier: cheapest.supplier,
-      price: cheapest.price,
-      quantity: group[0].quantity,
+      price: Number(cheapest.price),
+      quantity: Number(group[0].quantity || 1),
       subtotal: Number(cheapest.price) * Number(group[0].quantity || 1),
       cheapest,
       highest,
